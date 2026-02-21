@@ -1,0 +1,9 @@
+cloudflare_api_token        = "replace_me"
+cloudflare_account_id       = "replace_me"
+pages_project_name          = "photosite"
+pages_production_branch     = "main"
+enable_pages                = true
+r2_bucket_name              = "photosite-jpegs"
+r2_location                 = "WNAM"
+enable_pages_custom_domain  = false
+pages_custom_domain         = "photos.example.com"
