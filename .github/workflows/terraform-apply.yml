@@ -1,0 +1,58 @@
+name: Terraform Apply
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-apply.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    env:
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_pages_project_name: ${{ vars.TF_PAGES_PROJECT_NAME }}
+      TF_VAR_pages_production_branch: ${{ vars.TF_PAGES_PRODUCTION_BRANCH || 'main' }}
+      TF_VAR_enable_pages: ${{ vars.TF_ENABLE_PAGES || 'true' }}
+      TF_VAR_r2_bucket_name: ${{ vars.TF_R2_BUCKET_NAME }}
+      TF_VAR_r2_location: ${{ vars.TF_R2_LOCATION || 'WNAM' }}
+      TF_VAR_enable_pages_custom_domain: ${{ vars.TF_ENABLE_PAGES_CUSTOM_DOMAIN || 'false' }}
+      TF_VAR_pages_custom_domain: ${{ vars.TF_PAGES_CUSTOM_DOMAIN || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
