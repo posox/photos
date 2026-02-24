@@ -1,0 +1,278 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getCategoryList, getPhotos } from "../lib/photos";
+
+const photos = getPhotos();
+const categories = getCategoryList(photos);
+---
+
+<BaseLayout title="Photo Archive">
+  <section class="hero surface">
+    <p class="eyebrow">personal archive</p>
+    <h1>Photos</h1>
+    <p class="description">
+      Static gallery built from JPEG files and sidecar metadata.
+    </p>
+    <nav class="category-list">
+      {categories.map((category) => (
+        <a class="chip" href={`/category/${encodeURIComponent(category)}/`}>
+          {category}
+        </a>
+      ))}
+    </nav>
+  </section>
+
+  {photos.length > 0 ? (
+    <section class="pro-gallery" id="pro-gallery">
+      {photos.map((photo) => (
+        <a
+          class="tile surface"
+          href={`/photo/${photo.slug}/`}
+          style={`--ratio:${photo.aspectRatio};`}
+          data-ratio={photo.aspectRatio}
+        >
+          <picture>
+            {photo.webpUrl && <source srcset={photo.webpUrl} type="image/webp" />}
+            <img
+              loading="lazy"
+              src={photo.imageUrl}
+              alt={photo.title}
+              width={photo.width}
+              height={photo.height}
+            />
+          </picture>
+        </a>
+      ))}
+    </section>
+  ) : (
+    <section class="empty surface">
+      <h2>No photos yet</h2>
+      <p>Add `*.jpg` + `*.yml` files into `photos/`, then run `npm run build` in `site/`.</p>
+    </section>
+  )}
+</BaseLayout>
+
+<script is:inline>
+  (() => {
+    const gallery = document.getElementById("pro-gallery");
+    if (!gallery) return;
+
+    const tiles = Array.from(gallery.querySelectorAll(".tile"));
+    if (tiles.length === 0) return;
+
+    function getTargetRowHeight(viewportWidth) {
+      if (viewportWidth < 560) return 170;
+      if (viewportWidth < 900) return 190;
+      if (viewportWidth < 1280) return 210;
+      return 225;
+    }
+
+    function applyRow(rowTiles, rowRatios, galleryWidth, gap, targetHeight, justify) {
+      if (rowTiles.length === 0) return;
+
+      const ratiosSum = rowRatios.reduce((sum, ratio) => sum + ratio, 0);
+      const gapsWidth = gap * (rowTiles.length - 1);
+      const naturalRowWidth = ratiosSum * targetHeight + gapsWidth;
+      const rowHeight = justify
+        ? Math.max(120, (galleryWidth - gapsWidth) / ratiosSum)
+        : targetHeight;
+
+      let usedWidth = 0;
+      for (let i = 0; i < rowTiles.length; i += 1) {
+        const tile = rowTiles[i];
+        const ratio = rowRatios[i];
+        let width = Math.round(ratio * rowHeight);
+
+        // Avoid cumulative rounding gaps on justified rows.
+        if (justify && i === rowTiles.length - 1) {
+          width = Math.max(1, galleryWidth - usedWidth - gapsWidth);
+        }
+
+        usedWidth += width;
+        tile.style.width = `${width}px`;
+        tile.style.height = `${Math.round(rowHeight)}px`;
+      }
+
+      // If the row is tiny, don't justify it aggressively.
+      if (justify && naturalRowWidth < galleryWidth * 0.72) {
+        for (let i = 0; i < rowTiles.length; i += 1) {
+          rowTiles[i].style.width = `${Math.round(rowRatios[i] * targetHeight)}px`;
+          rowTiles[i].style.height = `${Math.round(targetHeight)}px`;
+        }
+      }
+    }
+
+    function layout() {
+      const galleryWidth = gallery.clientWidth;
+      if (!galleryWidth) return;
+
+      const computed = window.getComputedStyle(gallery);
+      const gap = Number.parseFloat(computed.columnGap || computed.gap || "10") || 10;
+      const targetRowHeight = getTargetRowHeight(window.innerWidth);
+      const rowThreshold = galleryWidth * 0.99;
+
+      let rowTiles = [];
+      let rowRatios = [];
+      let ratioSum = 0;
+
+      for (const tile of tiles) {
+        const ratio = Number(tile.dataset.ratio || "1");
+        rowTiles.push(tile);
+        rowRatios.push(ratio);
+        ratioSum += ratio;
+
+        const rowWidthAtTarget = ratioSum * targetRowHeight + (rowTiles.length - 1) * gap;
+        const shouldCommit = rowWidthAtTarget >= rowThreshold;
+        if (shouldCommit) {
+          applyRow(rowTiles, rowRatios, galleryWidth, gap, targetRowHeight, true);
+          rowTiles = [];
+          rowRatios = [];
+          ratioSum = 0;
+        }
+      }
+
+      // Last row should stay natural, not stretched to full width.
+      applyRow(rowTiles, rowRatios, galleryWidth, gap, targetRowHeight, false);
+    }
+
+    let rafId = 0;
+    function scheduleLayout() {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(layout);
+    }
+
+    window.addEventListener("resize", scheduleLayout);
+    window.addEventListener("load", scheduleLayout);
+    try {
+      scheduleLayout();
+    } catch {
+      // Keep CSS fallback layout.
+    }
+  })();
+</script>
+
+<style>
+  .hero {
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.8rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    right: -70px;
+    top: -130px;
+    background: radial-gradient(circle, rgba(0, 122, 103, 0.35) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-weight: 800;
+    color: var(--brand);
+    font-size: 0.68rem;
+  }
+
+  h1 {
+    margin: 0.4rem 0;
+    font-size: clamp(2rem, 6vw, 2.8rem);
+  }
+
+  .description {
+    margin: 0 0 0.6rem;
+    color: var(--muted);
+    max-width: 65ch;
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
+
+  .category-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .pro-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-start;
+    align-content: flex-start;
+  }
+
+  .tile {
+    overflow: hidden;
+    border-radius: 12px;
+    animation: fadeUp 300ms ease both;
+    transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+    flex: 0 0 auto;
+    width: calc((100% - 30px) / 4);
+    aspect-ratio: var(--ratio, 1.2);
+  }
+
+  .tile:hover {
+    transform: translateY(-2px);
+    border-color: rgba(0, 122, 103, 0.4);
+    box-shadow: 0 16px 34px rgba(7, 28, 33, 0.16);
+  }
+
+  .tile picture {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .tile img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
+  @media (max-width: 1320px) {
+    .tile {
+      width: calc((100% - 20px) / 3);
+    }
+  }
+
+  @media (max-width: 820px) {
+    .pro-gallery {
+      gap: 8px;
+    }
+
+    .tile {
+      width: calc((100% - 8px) / 2);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .hero {
+      padding: 0.9rem;
+    }
+
+    .tile {
+      width: 100%;
+    }
+  }
+
+  .empty {
+    padding: 1.2rem;
+  }
+
+  h2 {
+    margin-top: 0;
+  }
+
+  @media (max-width: 640px) {
+    .hero {
+      padding: 1.05rem;
+    }
+  }
+</style>

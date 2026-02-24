@@ -1,0 +1,377 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getPhotos } from "../../lib/photos";
+
+const photos = getPhotos();
+
+export function getStaticPaths() {
+  const photos = getPhotos();
+  return photos.map((photo) => ({
+    params: { slug: photo.slug },
+    props: { photo }
+  }));
+}
+
+const { photo } = Astro.props;
+const currentIndex = photos.findIndex((item) => item.slug === photo.slug);
+const totalPhotos = photos.length;
+const prevPhoto = currentIndex > 0 ? photos[currentIndex - 1] : photos[totalPhotos - 1];
+const nextPhoto = currentIndex < totalPhotos - 1 ? photos[currentIndex + 1] : photos[0];
+---
+
+<BaseLayout title={photo.title} description={photo.description || photo.title}>
+  <article class="fullscreen">
+    <section
+      id="viewer"
+      class="viewer"
+      data-prev-url={`/photo/${prevPhoto.slug}/`}
+      data-next-url={`/photo/${nextPhoto.slug}/`}
+    >
+      <picture>
+        {photo.webpUrl && <source srcset={photo.webpUrl} type="image/webp" />}
+        <img
+          id="photo-image"
+          src={photo.imageUrl}
+          alt={photo.title}
+          width={photo.width}
+          height={photo.height}
+          draggable="false"
+        />
+      </picture>
+    </section>
+
+    <section class="toolbar">
+      <a class="back" href="/">Back</a>
+      <p class="counter">{currentIndex + 1} / {totalPhotos}</p>
+      <nav class="switcher">
+        <a class="nav-btn" href={`/photo/${prevPhoto.slug}/`}>Prev</a>
+        <a class="nav-btn" href={`/photo/${nextPhoto.slug}/`}>Next</a>
+      </nav>
+    </section>
+
+    <section class="viewer-controls">
+      <button type="button" id="zoom-out" aria-label="Zoom out">-</button>
+      <button type="button" id="zoom-reset" aria-label="Reset zoom">100%</button>
+      <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+    </section>
+
+    <section class="meta">
+      <h1>{photo.title}</h1>
+      <p class="line">
+        {photo.date ?? "No date"}
+        {photo.location ? ` · ${photo.location}` : ""}
+      </p>
+    </section>
+  </article>
+</BaseLayout>
+
+<script is:inline>
+  (() => {
+    const viewer = document.getElementById("viewer");
+    const image = document.getElementById("photo-image");
+    const zoomIn = document.getElementById("zoom-in");
+    const zoomOut = document.getElementById("zoom-out");
+    const zoomReset = document.getElementById("zoom-reset");
+
+    if (!viewer || !image || !zoomIn || !zoomOut || !zoomReset) {
+      return;
+    }
+
+    const minScale = 1;
+    const maxScale = 5;
+    const step = 0.2;
+    let scale = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+    let dragActive = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+
+    function clampOffsets() {
+      const viewerRect = viewer.getBoundingClientRect();
+      const maxOffsetX = Math.max(0, (image.clientWidth * scale - viewerRect.width) / 2);
+      const maxOffsetY = Math.max(0, (image.clientHeight * scale - viewerRect.height) / 2);
+      offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, offsetX));
+      offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, offsetY));
+    }
+
+    function render() {
+      clampOffsets();
+      image.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+      viewer.style.cursor = scale > 1 ? (dragActive ? "grabbing" : "grab") : "zoom-in";
+      zoomReset.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    function setScale(nextScale) {
+      const clamped = Math.max(minScale, Math.min(maxScale, nextScale));
+      if (clamped === scale) {
+        return;
+      }
+      scale = clamped;
+      if (scale === 1) {
+        offsetX = 0;
+        offsetY = 0;
+      }
+      render();
+    }
+
+    function goTo(direction) {
+      const url = direction === "prev" ? viewer.dataset.prevUrl : viewer.dataset.nextUrl;
+      if (url) {
+        window.location.href = url;
+      }
+    }
+
+    zoomIn.addEventListener("click", () => setScale(scale + step));
+    zoomOut.addEventListener("click", () => setScale(scale - step));
+    zoomReset.addEventListener("click", () => setScale(1));
+
+    viewer.addEventListener(
+      "wheel",
+      (event) => {
+        event.preventDefault();
+        const delta = event.deltaY > 0 ? -step : step;
+        setScale(scale + delta);
+      },
+      { passive: false }
+    );
+
+    viewer.addEventListener("dblclick", () => {
+      setScale(scale > 1 ? 1 : 2);
+    });
+
+    viewer.addEventListener("pointerdown", (event) => {
+      if (scale <= 1) {
+        return;
+      }
+      dragActive = true;
+      dragStartX = event.clientX - offsetX;
+      dragStartY = event.clientY - offsetY;
+      viewer.setPointerCapture(event.pointerId);
+      render();
+    });
+
+    viewer.addEventListener("pointermove", (event) => {
+      if (!dragActive) {
+        return;
+      }
+      offsetX = event.clientX - dragStartX;
+      offsetY = event.clientY - dragStartY;
+      render();
+    });
+
+    viewer.addEventListener("pointerup", () => {
+      dragActive = false;
+      render();
+    });
+
+    viewer.addEventListener("pointercancel", () => {
+      dragActive = false;
+      render();
+    });
+
+    viewer.addEventListener("touchstart", (event) => {
+      if (event.touches.length !== 1) {
+        return;
+      }
+      swipeStartX = event.touches[0].clientX;
+      swipeStartY = event.touches[0].clientY;
+    });
+
+    viewer.addEventListener("touchend", (event) => {
+      if (scale > 1 || event.changedTouches.length !== 1) {
+        return;
+      }
+      const dx = event.changedTouches[0].clientX - swipeStartX;
+      const dy = event.changedTouches[0].clientY - swipeStartY;
+      if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) {
+        return;
+      }
+      goTo(dx > 0 ? "prev" : "next");
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowLeft") {
+        goTo("prev");
+      } else if (event.key === "ArrowRight") {
+        goTo("next");
+      } else if (event.key === "=" || event.key === "+") {
+        setScale(scale + step);
+      } else if (event.key === "-") {
+        setScale(scale - step);
+      } else if (event.key === "0") {
+        setScale(1);
+      } else if (event.key === "Escape") {
+        window.location.href = "/";
+      }
+    });
+
+    window.addEventListener("resize", render);
+    image.addEventListener("load", render);
+    render();
+  })();
+</script>
+
+<style>
+  :global(.container) {
+    max-width: none;
+    padding: 0;
+  }
+
+  .fullscreen {
+    position: relative;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+    background: #0c1114;
+  }
+
+  .viewer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(27, 37, 44, 0.7) 0%, rgba(12, 17, 20, 1) 76%),
+      #0c1114;
+    touch-action: none;
+  }
+
+  .viewer picture {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+
+  #photo-image {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    max-width: 100vw;
+    max-height: 100dvh;
+    display: block;
+    object-fit: contain;
+    transform-origin: center center;
+    transition: transform 120ms ease-out;
+    user-select: none;
+    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.5);
+  }
+
+  .toolbar {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+    background: rgba(7, 12, 15, 0.55);
+    backdrop-filter: blur(9px);
+    z-index: 10;
+  }
+
+  .back,
+  .counter {
+    color: #dff3f0;
+  }
+
+  .back {
+    font-weight: 700;
+  }
+
+  .counter {
+    margin: 0;
+    font-size: 0.8rem;
+    font-family: "JetBrains Mono", monospace;
+    opacity: 0.88;
+  }
+
+  .switcher {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .nav-btn {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #e6f3f1;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .viewer-controls {
+    position: absolute;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    display: inline-flex;
+    gap: 0.4rem;
+    padding: 0.3rem;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    background: rgba(7, 12, 15, 0.6);
+    backdrop-filter: blur(9px);
+    z-index: 11;
+  }
+
+  .viewer-controls button {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    color: #f0f7f6;
+    min-width: 3.2rem;
+    padding: 0.34rem 0.62rem;
+    cursor: pointer;
+    font-weight: 700;
+    font-family: "JetBrains Mono", monospace;
+  }
+
+  .meta {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 4.8rem;
+    display: inline-block;
+    max-width: min(520px, 90vw);
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    background: rgba(7, 12, 15, 0.5);
+    backdrop-filter: blur(7px);
+    color: #e6f3f1;
+    z-index: 10;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    font-weight: 700;
+  }
+
+  .line {
+    margin: 0.2rem 0 0;
+    color: rgba(232, 246, 243, 0.82);
+    font-size: 0.76rem;
+  }
+
+  @media (max-width: 760px) {
+    .toolbar {
+      grid-template-columns: 1fr;
+      justify-items: start;
+      gap: 0.45rem;
+    }
+
+    .meta {
+      bottom: 4.5rem;
+      max-width: 92vw;
+    }
+  }
+</style>

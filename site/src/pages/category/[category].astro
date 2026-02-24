@@ -1,0 +1,59 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import PhotoCard from "../../components/PhotoCard.astro";
+import { getCategoryList, getPhotos } from "../../lib/photos";
+
+export function getStaticPaths() {
+  const categories = getCategoryList(getPhotos());
+  return categories.map((category) => ({
+    params: { category },
+    props: { category }
+  }));
+}
+
+const { category } = Astro.props;
+const photos = getPhotos().filter((photo) => photo.categories.includes(category));
+---
+
+<BaseLayout title={`Category: ${category}`}>
+  <a class="back" href="/">All photos</a>
+  <section class="head surface">
+    <h1>{category}</h1>
+    <p>{photos.length} photo(s)</p>
+  </section>
+  <section class="grid">
+    {photos.map((photo) => (
+      <PhotoCard photo={photo} />
+    ))}
+  </section>
+</BaseLayout>
+
+<style>
+  .back {
+    display: inline-block;
+    margin-bottom: 0.8rem;
+    color: var(--brand-strong);
+    font-weight: 700;
+  }
+
+  .head {
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.9rem;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.5rem, 4vw, 2rem);
+  }
+
+  p {
+    margin: 0.35rem 0 0;
+    color: var(--muted);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.9rem;
+  }
+</style>
