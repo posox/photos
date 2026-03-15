@@ -1,0 +1,63 @@
+name: Site Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "site/**"
+      - "photos/**"
+      - "scripts/**"
+      - "package.json"
+      - ".github/workflows/site-deploy.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      PHOTOS_CDN_BASE_URL: ${{ vars.PHOTOS_CDN_BASE_URL || '/photos' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Required Configuration
+        run: |
+          test -n "${{ secrets.CLOUDFLARE_API_TOKEN }}" || { echo "Missing secret: CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "${{ vars.CLOUDFLARE_ACCOUNT_ID }}" || { echo "Missing variable: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          test -n "${{ vars.TF_PAGES_PROJECT_NAME }}" || { echo "Missing variable: TF_PAGES_PROJECT_NAME"; exit 1; }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install Dependencies
+        run: npm --prefix site ci
+
+      - name: Build Site
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy site/dist
+            --project-name=${{ vars.TF_PAGES_PROJECT_NAME }}
+            --branch=${{ github.ref_name }}
+
+      - name: Print Deployment URL
+        run: echo "${{ steps.deploy.outputs.deployment-url }}"
