@@ -32,6 +32,19 @@ cp backend.hcl.example backend.hcl
 
 4. Fill values in `backend.hcl`.
 
+Example:
+
+```hcl
+bucket                  = "photosite-terraform-state"
+key                     = "prod/terraform.tfstate"
+region                  = "auto"
+endpoint                = "https://<cloudflare_account_id>.r2.cloudflarestorage.com"
+skip_credentials_validation = true
+skip_metadata_api_check = true
+skip_region_validation  = true
+force_path_style        = true
+```
+
 5. Export backend credentials for the state bucket:
 
 ```bash
@@ -56,6 +69,8 @@ terraform apply
 
 Workflow file: `.github/workflows/terraform-apply.yml`
 
+Only the following GitHub Actions secrets/variables are referenced by code right now.
+
 Required repository secrets:
 - `CLOUDFLARE_API_TOKEN`
 - `TF_STATE_ACCESS_KEY_ID`
@@ -72,9 +87,11 @@ Optional repository variables (defaults are used if omitted):
 - `TF_ENABLE_PAGES` (default: `true`)
 - `TF_R2_LOCATION` (default: `WNAM`)
 - `TF_ENABLE_PAGES_CUSTOM_DOMAIN` (default: `false`)
-- `TF_PAGES_CUSTOM_DOMAIN` (default: empty)
+- `TF_PAGES_CUSTOM_DOMAIN` (required only if `TF_ENABLE_PAGES_CUSTOM_DOMAIN=true`, default: empty)
 - `TF_STATE_KEY` (default: `prod/terraform.tfstate`)
 
 Important:
 - Keep the state bucket separate from the photo bucket.
 - Bootstrap the state bucket manually once before switching this stack to remote state.
+- `TF_STATE_BUCKET` and `CLOUDFLARE_ACCOUNT_ID` must be set in GitHub repository variables, otherwise `terraform init` will build an invalid endpoint like `https://.r2.cloudflarestorage.com`.
+- No other GitHub Actions secrets or variables are referenced by the current repository code.

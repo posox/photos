@@ -55,10 +55,9 @@ jobs:
           -backend-config="region=auto"
           -backend-config="endpoint=https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           -backend-config="skip_credentials_validation=true"
+          -backend-config="skip_metadata_api_check=true"
           -backend-config="skip_region_validation=true"
-          -backend-config="skip_requesting_account_id=true"
-          -backend-config="skip_s3_checksum=true"
-          -backend-config="use_path_style=true"
+          -backend-config="force_path_style=true"
 
       - name: Terraform Validate
         run: terraform validate
