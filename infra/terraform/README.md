@@ -6,6 +6,9 @@ This folder creates:
 - Optional custom domain for Pages.
 - Uses remote Terraform state in a separate Cloudflare R2 bucket.
 
+Terraform creates the Pages project, but it does not upload the site build.
+The actual frontend deploy is handled by GitHub Actions workflow `.github/workflows/site-deploy.yml`.
+
 ## Prerequisites
 
 - Terraform `>= 1.5`
@@ -100,3 +103,21 @@ Important:
 - Bootstrap the state bucket manually once before switching this stack to remote state.
 - `TF_STATE_BUCKET` and `CLOUDFLARE_ACCOUNT_ID` must be set in GitHub Actions environment `prod`, otherwise `terraform init` will build an invalid endpoint like `https://.r2.cloudflarestorage.com`.
 - No other GitHub Actions secrets or variables are referenced by the current repository code.
+
+## GitHub Actions site deploy
+
+Workflow file: `.github/workflows/site-deploy.yml`
+
+The workflow job also uses GitHub Actions environment `prod`.
+
+Required environment secrets:
+- `CLOUDFLARE_API_TOKEN`
+
+Required environment variables:
+- `CLOUDFLARE_ACCOUNT_ID`
+- `TF_PAGES_PROJECT_NAME`
+
+Optional environment variables:
+- `PHOTOS_CDN_BASE_URL` (default: `/photos`)
+
+After the first successful run, the site will be available on the Pages hostname from Terraform output, for example `https://<project>.pages.dev`.
