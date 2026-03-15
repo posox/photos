@@ -22,7 +22,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: prod
+    environment: production
     env:
       PHOTOS_CDN_BASE_URL: ${{ vars.PHOTOS_CDN_BASE_URL || '/photos' }}
     steps:
