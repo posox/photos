@@ -69,20 +69,25 @@ terraform apply
 
 Workflow file: `.github/workflows/terraform-apply.yml`
 
-Only the following GitHub Actions secrets/variables are referenced by code right now.
+The workflow job uses GitHub Actions environment `prod`.
 
-Required repository secrets:
+Create it in:
+- `Settings > Environments > prod`
+
+Only the following GitHub Actions environment secrets/variables are referenced by code right now.
+
+Required environment secrets:
 - `CLOUDFLARE_API_TOKEN`
 - `TF_STATE_ACCESS_KEY_ID`
 - `TF_STATE_SECRET_ACCESS_KEY`
 
-Required repository variables:
+Required environment variables:
 - `CLOUDFLARE_ACCOUNT_ID`
 - `TF_PAGES_PROJECT_NAME`
 - `TF_R2_BUCKET_NAME`
 - `TF_STATE_BUCKET`
 
-Optional repository variables (defaults are used if omitted):
+Optional environment variables (defaults are used if omitted):
 - `TF_PAGES_PRODUCTION_BRANCH` (default: `main`)
 - `TF_ENABLE_PAGES` (default: `true`)
 - `TF_R2_LOCATION` (default: `WNAM`)
@@ -93,5 +98,5 @@ Optional repository variables (defaults are used if omitted):
 Important:
 - Keep the state bucket separate from the photo bucket.
 - Bootstrap the state bucket manually once before switching this stack to remote state.
-- `TF_STATE_BUCKET` and `CLOUDFLARE_ACCOUNT_ID` must be set in GitHub repository variables, otherwise `terraform init` will build an invalid endpoint like `https://.r2.cloudflarestorage.com`.
+- `TF_STATE_BUCKET` and `CLOUDFLARE_ACCOUNT_ID` must be set in GitHub Actions environment `prod`, otherwise `terraform init` will build an invalid endpoint like `https://.r2.cloudflarestorage.com`.
 - No other GitHub Actions secrets or variables are referenced by the current repository code.

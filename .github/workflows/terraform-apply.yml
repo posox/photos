@@ -19,6 +19,7 @@ concurrency:
 jobs:
   apply:
     runs-on: ubuntu-latest
+    environment: production
     defaults:
       run:
         working-directory: infra/terraform
@@ -38,6 +39,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate Required Configuration
+        run: |
+          test -n "${AWS_ACCESS_KEY_ID}" || { echo "Missing secret: TF_STATE_ACCESS_KEY_ID"; exit 1; }
+          test -n "${AWS_SECRET_ACCESS_KEY}" || { echo "Missing secret: TF_STATE_SECRET_ACCESS_KEY"; exit 1; }
+          test -n "${TF_VAR_cloudflare_api_token}" || { echo "Missing secret: CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "${TF_VAR_cloudflare_account_id}" || { echo "Missing variable: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          test -n "${TF_VAR_pages_project_name}" || { echo "Missing variable: TF_PAGES_PROJECT_NAME"; exit 1; }
+          test -n "${TF_VAR_r2_bucket_name}" || { echo "Missing variable: TF_R2_BUCKET_NAME"; exit 1; }
+          test -n "${{ vars.TF_STATE_BUCKET }}" || { echo "Missing variable: TF_STATE_BUCKET"; exit 1; }
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
